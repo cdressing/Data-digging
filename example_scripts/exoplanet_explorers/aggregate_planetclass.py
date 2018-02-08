@@ -50,9 +50,13 @@ import gc
 # define the active workflow - we will ignore all classifications not on this workflow
 # we could make this an input but let's not get too fancy for a specific case.
 
-# for live project
-active_workflow_id = 3821
-active_workflow_major = 3
+# for live project (Exoplanet Explorers 1)
+#active_workflow_id = 3821
+#active_workflow_major = 3
+
+#for Exoplanet Explorers 2
+active_workflow_id = 5800
+active_workflow_major = 1
 
 # do we want sum(weighted vote count) = sum(raw vote count)?
 normalise_weights = True
@@ -62,7 +66,6 @@ normalise_weights = True
 # (and a random color column, for treemaps)?
 counts_out = True
 counts_out_file = 'class_counts_colors.csv'
-
 
 
 
