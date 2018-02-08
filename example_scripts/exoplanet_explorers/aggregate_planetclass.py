@@ -16,12 +16,18 @@ Hopefully this is well-enough commented below to be useful for others.
 '''
 
 
+
+# default outfile
+outfile_default = 'planet_aggregations.csv'
+rankfile_stem = 'subjects_ranked_by_weighted_class_asof_'
+outdir = '/Users/courtney/Dropbox/exoplanet_explorers/results/'
+
 # file with raw classifications (csv) needed
 # put this way up here so if there are no inputs we exit quickly before even trying to load everything else
 try:
     classfile_in = sys.argv[1]
 except:
-    #classfile_in = 'exoplanet-explorers-classifications.csv'
+    classfile_in = '/Users/courtney/Dropbox/exoplanet_explorers/data/exoplanet-explorers-classifications.csv'
     print("\nUsage: %s classifications_infile [weight_class aggregations_outfile]" % sys.argv[0])
     print("      classifications_infile is a Zooniverse (Panoptes) classifications data export CSV.")
     print("      weight_class is 1 if you want to calculate and apply user weightings, 0 otherwise.")
@@ -40,11 +46,6 @@ import gc
 
 
 ############ Define files and settings below ##############
-
-# default outfile
-outfile_default = 'planet_aggregations.csv'
-rankfile_stem = 'subjects_ranked_by_weighted_class_asof_'
-
 
 # define the active workflow - we will ignore all classifications not on this workflow
 # we could make this an input but let's not get too fancy for a specific case.
@@ -197,6 +198,13 @@ def assign_weight(q, which_weight):
      Example: Bob does 10000 gold-standard classifications and gets 5100 right, 4900 wrong. In this weighting scheme, Bob's weighting seed is +100, which means a weight of 1.0025^100 = 1.3, despite the fact that Bob's classifications are consistent with random within 1%.
 
      The weightings below this one would take the weight based on 100/10000, which is much better.
+
+    Weighting Schemes 2 and 3:
+     The passed seed is divided by the number of classifications.
+
+     In weighting scheme 2, the seed has one fixed increment for correct classifications and another for incorrect classifications. It's a switch with two possible values: right, or wrong.
+
+     Weighting scheme 3 is designed for projects where the gold-standards have variable intrinsic difficulty, so it sets the seed value for each gold-standard subject depending on how many people correctly classified it. Then it sums those individual seeds to the seed that's passed here and computes the weight in the same way as weighting scheme 2.
     '''
     if which_weight == 1:
         # keep the two seed cases separate because we might want to use a different base for each
@@ -206,24 +214,13 @@ def assign_weight(q, which_weight):
             return min([3.0, pow(1.0025, seed)])
         else:
             return 1.0
-
-    '''
-    Weighting Schemes 2 and 3:
-     The passed seed is divided by the number of classifications.
-
-     In weighting scheme 2, the seed has one fixed increment for correct classifications and another for incorrect classifications. It's a switch with two possible values: right, or wrong.
-
-     Weighting scheme 3 is designed for projects where the gold-standards have variable intrinsic difficulty, so it sets the seed value for each gold-standard subject depending on how many people correctly classified it. Then it sums those individual seeds to the seed that's passed here and computes the weight in the same way as weighting scheme 2.
-    '''
-
-    elif (which_weight == 2) | (which_weight == 3):
+    elif (which_weight == 2)|(which_weight == 3):
         if n_gs < 1: # don't divide by or take the log of 0
             # also if they didn't do any gold-standard classifications assume they have the default weight
             return c0
         else:
             # note the max of 3 is unlikely to be reached, but someone could hit the floor.
             return min([3.0, max([0.05, c0*pow((1.0 + np.log10(n_gs)), (float(seed)/float(n_gs)))])])
-
     else:
         # unweighted - so maybe don't even enter this function if which_weight is not 1 or 2...
         return 1.0
@@ -244,8 +241,9 @@ def gini(list_of_values):
         height += value
         area += height - value / 2.
     fair_area = height * len(list_of_values) / 2
-    return (fair_area - area) / fair_area
 
+    return (fair_area - area) / fair_area
+    
 
 
 #################################################################################
@@ -388,7 +386,6 @@ print("  Will print to %s after processing." % outfile)
 print("Reading classifications from %s ..." % classfile_in)
 
 classifications = pd.read_csv(classfile_in) # this step can take a few minutes for a big file
-
 '''
  This section takes quite a while and it's because we have so many for loops, which I think is in part because reading out of a dict from a column in a DataFrame needs loops when done this way and in part because we were in a rush.
 
@@ -471,7 +468,6 @@ classifications['candidate'] = [get_filename(q) for q in classifications['subjec
 # could fix that by using created_at...
 #last_class_time = max(classifications.finished_at_str)[:16].replace(' ', '_').replace('T', '_').replace(':', 'h')+"m"
 last_class_time = max(classifications.created_at)[:16].replace(' ', '_').replace('T', '_').replace(':', 'h')+"m"
-
 
 
 
@@ -701,7 +697,25 @@ class_agg.fillna(value=0.0, inplace=True)
 # let people look up the subject on Talk directly from the aggregated file
 class_agg['link'] = ['https://www.zooniverse.org/projects/ianc2/exoplanet-explorers/talk/subjects/'+str(q) for q in class_agg.index]
 # and provide the exofop link too
-class_agg['exofop'] = ['https://exofop.ipac.caltech.edu/k2/edit_target.php?id=%d' % int(q) for q in class_agg.candidate]
+
+
+#START CDD FIX
+#start error message
+#Traceback (most recent call last):
+#  File "aggregate_planetclass.py", line 706, in <module>
+#    class_agg['exofop'] = ['https://exofop.ipac.caltech.edu/k2/edit_target.php?id=%d' % int(q) for q in class_agg.candidate]
+#  File "aggregate_planetclass.py", line 706, in <listcomp>
+#    class_agg['exofop'] = ['https://exofop.ipac.caltech.edu/k2/edit_target.php?id=%d' % int(q) for q in class_agg.candidate]
+#ValueError: invalid literal for int() with base 10: '205953312.02'
+#end error message
+#start original line
+#class_agg['exofop'] = ['https://exofop.ipac.caltech.edu/k2/edit_target.php?id=%d' % int(q) for q in class_agg.candidate]
+#end original line
+#start new line
+class_agg['exofop'] = ['https://exofop.ipac.caltech.edu/k2/edit_target.php?id=%d' % int(float(q)) for q in class_agg.candidate]
+
+#end new line
+#END CDD FIX
 # after we do the merges below the new indices might not be linked to the subject id, so save it explicitly
 class_agg['subject_ids'] = [str(q) for q in class_agg.index]
 
@@ -745,12 +759,14 @@ pd.DataFrame(class_agg[rank_cols][classified_candidate]).to_csv(rankfile)
 # copy the candidate list into Google Drive so others can see it, overwriting previous versions
 # Note: this is the way I instantly shared the new aggregated results with collaborators, because
 # Google Drive automatically syncs with the online version. Dropbox would work too, etc. YMMV
-cpfile = "/Users/vrooje/Google Drive/exoplanet_explorers_share/all_candidates_ranked_by_classifications_%dclass.csv" % nclass_tot
-print("Copying to Google Drive folder as %s..." % cpfile)
+cpfile = "/all_candidates_ranked_by_classifications_%dclass.csv" % nclass_tot
+cpfile = outdir+cpfile
+print("Copying to Dropbox folder as %s..." % cpfile)
 os.system("cp -f '%s' '%s'" % (rankfile, cpfile))
 
 # and just for the record, all subjects.
-cpfile3 = "/Users/vrooje/Google Drive/exoplanet_explorers_share/all_subjects_ranked_by_classifications_%dclass.csv" % nclass_tot
+cpfile3 = "all_subjects_ranked_by_classifications_%dclass.csv" % nclass_tot
+cpfile3 = outdir+cpfile3
 print("... and %s" % cpfile3)
 os.system("cp -f '%s' '%s'" % (rankfile_all, cpfile3))
 
